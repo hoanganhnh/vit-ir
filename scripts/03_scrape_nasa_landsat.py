@@ -1,9 +1,11 @@
 """
-Script 03: Scrape NASA Landsat Alphabet images
-===============================================
-Scrapes letter images from NASA's "Your Name in Landsat" tool.
-The tool serves satellite images of landforms resembling each letter.
-Output: dataset/satellite_letters/raw/nasa/A/ ... Z/
+Script 03: Download NASA Landsat Alphabet images
+=================================================
+Downloads letter images from NASA's "Your Name in Landsat" tool.
+URL pattern: https://science.nasa.gov/specials/your-name-in-landsat/images/{letter}_{index}.jpg
+
+Each letter has multiple satellite images (varying count per letter).
+Output: dataset/satellite_letters/raw/nasa/{A..Z}/
 """
 
 import os
@@ -11,181 +13,192 @@ import sys
 import string
 import time
 import json
-import hashlib
 from pathlib import Path
-from urllib.parse import urljoin
 
 import requests
-from tqdm import tqdm
 
 
-# NASA Landsat Letter tool endpoints (may need updating)
-NASA_LANDSAT_BASE = "https://svs.gsfc.nasa.gov"
-NASA_EARTH_OBS_BASE = "https://earthobservatory.nasa.gov"
+# NASA "Your Name in Landsat" image endpoint
+BASE_URL = "https://science.nasa.gov/specials/your-name-in-landsat/images/"
 
-# Known NASA Landsat Alphabet image URLs
-# These are curated from various NASA sources
-# Each letter may have multiple known satellite images
-KNOWN_LETTER_SOURCES = {
-    # NASA Earth Observatory "Reading the ABCs from Space"
-    # These URLs point to known satellite images for each letter
-    "base_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/",
+# Browser-like headers to avoid blocks
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
 }
+
+# Rate limiting
+DELAY_BETWEEN_REQUESTS = 0.3  # seconds
 
 
 def download_image(url: str, save_path: str, timeout: int = 30) -> bool:
-    """Download an image from a URL."""
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Research/Academic Project) SatLetter Dataset Builder"
-        }
-        response = requests.get(url, headers=headers, timeout=timeout, stream=True)
-        response.raise_for_status()
+    """Download an image from a URL with retry logic."""
+    for attempt in range(3):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=timeout)
 
-        content_type = response.headers.get("content-type", "")
-        if "image" not in content_type and "octet-stream" not in content_type:
+            if response.status_code == 200:
+                # Verify it's actually an image (check content-type or file magic)
+                content_type = response.headers.get("content-type", "")
+                if "image" in content_type or "octet-stream" in content_type:
+                    with open(save_path, "wb") as f:
+                        f.write(response.content)
+                    return True
+                # Sometimes NASA returns HTML for missing images with 200
+                if len(response.content) < 1000:
+                    return False
+                # Save anyway if content is large enough to be an image
+                with open(save_path, "wb") as f:
+                    f.write(response.content)
+                return True
+
+            elif response.status_code == 404:
+                return False
+
+            elif response.status_code == 429:
+                # Rate limited - back off
+                wait = 5 * (attempt + 1)
+                print(f"  Rate limited, waiting {wait}s...")
+                time.sleep(wait)
+                continue
+
+            else:
+                return False
+
+        except requests.exceptions.Timeout:
+            if attempt < 2:
+                time.sleep(2)
+                continue
+            return False
+        except requests.RequestException as e:
+            print(f"  Request error: {e}")
             return False
 
-        with open(save_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        return True
-
-    except (requests.RequestException, IOError) as e:
-        print(f"  Failed to download {url}: {e}")
-        return False
+    return False
 
 
-def scrape_landsat_alphabet_gallery(output_dir: str = "dataset/satellite_letters/raw/nasa"):
+def scrape_landsat_alphabet(
+    output_dir: str = "dataset/satellite_letters/raw/nasa",
+    max_per_letter: int = 50,
+):
     """
-    Attempt to scrape satellite letter images from NASA sources.
+    Download satellite letter images from NASA's Your Name in Landsat tool.
 
-    Strategy:
-    1. Try the "Your Name in Landsat" tool's image tiles
-    2. Try NASA Earth Observatory gallery
-    3. Fall back to generating a guide for manual collection
+    The tool serves images at:
+        https://science.nasa.gov/specials/your-name-in-landsat/images/{letter}_{index}.jpg
+
+    where letter is a-z (lowercase) and index starts at 0.
+    We iterate until we get a 404 (no more images for that letter).
     """
 
     print("=" * 60)
-    print("NASA Landsat Alphabet Scraper")
+    print("NASA Landsat Alphabet Downloader")
     print("=" * 60)
+    print(f"Source: {BASE_URL}")
+    print(f"Output: {output_dir}")
+    print(f"Max per letter: {max_per_letter}")
+    print()
 
     letters = list(string.ascii_uppercase)
 
-    # Create output directories
+    # Create output directories (uppercase folder names to match project convention)
     for letter in letters:
         os.makedirs(os.path.join(output_dir, letter), exist_ok=True)
 
-    # Strategy 1: Try "Your Name in Landsat" tile endpoint
-    # The tool uses pre-selected Landsat tiles for each letter
-    print("\n--- Strategy 1: Your Name in Landsat tiles ---")
-
-    # The Landsat tool typically serves tiles from a known set
-    # We try common URL patterns used by NASA tools
-    landsat_endpoints = [
-        "https://svs.gsfc.nasa.gov/vis/a030000/a030028/landsat_alphabet/{letter}_{idx}.jpg",
-        "https://svs.gsfc.nasa.gov/vis/a030000/a030028/images/{letter}_{idx}.jpg",
-    ]
-
+    # Track results
+    letter_counts = {letter: 0 for letter in letters}
     total_downloaded = 0
-    letter_counts = {l: 0 for l in letters}
+    total_skipped = 0
 
-    for letter in tqdm(letters, desc="Trying Landsat tiles"):
-        for endpoint_template in landsat_endpoints:
-            for idx in range(1, 20):  # Try up to 20 variations
-                url = endpoint_template.format(letter=letter.lower(), idx=idx)
-                filename = f"nasa_landsat_{letter}_{idx:03d}.jpg"
-                save_path = os.path.join(output_dir, letter, filename)
+    for li, letter in enumerate(letters):
+        print(f"[{li + 1:2d}/26] Downloading letter {letter}...", end=" ", flush=True)
+        letter_lower = letter.lower()
+        index = 0
+        consecutive_failures = 0
 
+        while index < max_per_letter:
+            # NASA uses lowercase letter in URL
+            filename_remote = f"{letter_lower}_{index}.jpg"
+            url = f"{BASE_URL}{filename_remote}"
+
+            # Save with uppercase letter folder, descriptive filename
+            filename_local = f"nasa_landsat_{letter}_{index:03d}.jpg"
+            save_path = os.path.join(output_dir, letter, filename_local)
+
+            # Skip if already downloaded
+            if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
+                letter_counts[letter] += 1
+                total_skipped += 1
+                index += 1
+                consecutive_failures = 0
+                continue
+
+            if download_image(url, save_path):
+                letter_counts[letter] += 1
+                total_downloaded += 1
+                consecutive_failures = 0
+                time.sleep(DELAY_BETWEEN_REQUESTS)
+            else:
+                # Clean up empty/invalid files
                 if os.path.exists(save_path):
-                    letter_counts[letter] += 1
-                    continue
-
-                if download_image(url, save_path):
-                    letter_counts[letter] += 1
-                    total_downloaded += 1
-                    time.sleep(0.5)  # Rate limiting
-                else:
-                    # Clean up empty file if created
-                    if os.path.exists(save_path) and os.path.getsize(save_path) == 0:
+                    if os.path.getsize(save_path) == 0:
                         os.remove(save_path)
+                consecutive_failures += 1
+                # After 2 consecutive failures, assume no more images for this letter
+                if consecutive_failures >= 2:
+                    break
 
-    print(f"\nStrategy 1 results: {total_downloaded} images downloaded")
+            index += 1
 
-    # Strategy 2: Try NASA Earth Observatory image records
-    print("\n--- Strategy 2: Earth Observatory images ---")
+        print(f"{letter_counts[letter]} images")
 
-    # Known image record IDs for alphabet letters (from NASA EO)
-    # These are approximate - the actual IDs may vary
-    eo_image_ids = {
-        "A": [84887],
-        "B": [84888],
-        "C": [84889],
-        "D": [84890],
-        "E": [84891],
-        "F": [84892],
-        "G": [84893],
-        "H": [84894],
-        "I": [84895],
-        "J": [84896],
-        "K": [84897],
-        "L": [84898],
-        "M": [84899],
-        "N": [84900],
-        "O": [84901],
-        "P": [84902],
-        "Q": [84903],
-        "R": [84904],
-        "S": [84905],
-        "T": [84906],
-        "U": [84907],
-        "V": [84908],
-        "W": [84909],
-        "X": [84910],
-        "Y": [84911],
-        "Z": [84912],
-    }
-
-    eo_downloaded = 0
-    for letter, ids in tqdm(eo_image_ids.items(), desc="Earth Observatory"):
-        for img_id in ids:
-            # NASA EO image URL patterns
-            for size_suffix in ["", "_lrg"]:
-                url = (
-                    f"https://eoimages.gsfc.nasa.gov/images/imagerecords/"
-                    f"{img_id // 1000 * 1000:05d}/{img_id:05d}/"
-                    f"{letter.lower()}_eo{size_suffix}.jpg"
-                )
-                filename = f"nasa_eo_{letter}_{img_id}{size_suffix}.jpg"
-                save_path = os.path.join(output_dir, letter, filename)
-
-                if not os.path.exists(save_path):
-                    if download_image(url, save_path):
-                        eo_downloaded += 1
-                        letter_counts[letter] += 1
-                        time.sleep(0.5)
-                    else:
-                        if os.path.exists(save_path) and os.path.getsize(save_path) == 0:
-                            os.remove(save_path)
-
-    print(f"Strategy 2 results: {eo_downloaded} images downloaded")
-
-    # Generate summary and manual collection guide
-    print("\n" + "=" * 60)
-    print("SCRAPING SUMMARY")
+    # Print summary
+    print()
+    print("=" * 60)
+    print("DOWNLOAD SUMMARY")
     print("=" * 60)
 
-    total = sum(letter_counts.values())
-    print(f"Total images downloaded: {total}")
-    print(f"\nPer-letter counts:")
-    for letter in letters:
-        status = "✓" if letter_counts[letter] > 0 else "✗ NEEDS MANUAL"
-        print(f"  {letter}: {letter_counts[letter]} images {status}")
+    total_images = sum(letter_counts.values())
+    print(f"Total images: {total_images}")
+    print(f"  New downloads: {total_downloaded}")
+    print(f"  Already existed: {total_skipped}")
+    print()
 
-    # Generate manual collection guide
+    # Per-letter breakdown
+    print("Per-letter counts:")
+    empty_letters = []
+    for letter in letters:
+        count = letter_counts[letter]
+        if count == 0:
+            empty_letters.append(letter)
+            status = "✗ EMPTY"
+        else:
+            status = "✓"
+        print(f"  {letter}: {count:3d} images {status}")
+
+    if empty_letters:
+        print(f"\n⚠️  Letters with no images: {', '.join(empty_letters)}")
+        print("  These may need manual collection from Google Earth.")
+
+    # Save metadata
+    metadata = {
+        "source": "NASA Your Name in Landsat",
+        "base_url": BASE_URL,
+        "total_images": total_images,
+        "letter_counts": letter_counts,
+    }
+    metadata_path = os.path.join(output_dir, "download_metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+    print(f"\nMetadata saved to: {metadata_path}")
+
+    # Generate collection guide for missing letters
     guide_path = os.path.join(output_dir, "COLLECTION_GUIDE.md")
     generate_collection_guide(guide_path, letter_counts)
-    print(f"\nManual collection guide saved to: {guide_path}")
+    print(f"Collection guide: {guide_path}")
 
     return letter_counts
 
@@ -198,7 +211,7 @@ def generate_collection_guide(guide_path: str, letter_counts: dict):
 ## Mục tiêu
 Thu thập 50-100 ảnh vệ tinh cho MỖI chữ cái (A-Z) từ hình dạng tự nhiên/nhân tạo.
 
-## Trạng thái hiện tại
+## Trạng thái hiện tại (từ NASA scraper)
 """
     for letter, count in sorted(letter_counts.items()):
         needed = max(0, 50 - count)
@@ -206,7 +219,7 @@ Thu thập 50-100 ảnh vệ tinh cho MỖI chữ cái (A-Z) từ hình dạng t
         guide += f"- **{letter}**: {status}\n"
 
     guide += """
-## Nguồn thu thập
+## Nguồn thu thập bổ sung
 
 ### 1. Google Earth Pro (FREE)
 - Download: https://www.google.com/earth/versions/#earth-pro
@@ -223,7 +236,7 @@ Thu thập 50-100 ảnh vệ tinh cho MỖI chữ cái (A-Z) từ hình dạng t
 ## Gợi ý hình dạng cho từng chữ cái
 
 | Chữ | Hình dạng tự nhiên | Hình dạng nhân tạo |
-|-----|--------------------|--------------------|
+|-----|--------------------|---------------------|
 | A | Núi nhọn, tam giác delta | Tháp, cầu dây |
 | B | Hai hồ nước cạnh nhau | Sân vận động đôi |
 | C | Vịnh cong, bờ biển cong | Đường cong cao tốc, dam |
@@ -264,4 +277,20 @@ Thu thập 50-100 ảnh vệ tinh cho MỖI chữ cái (A-Z) từ hình dạng t
 
 
 if __name__ == "__main__":
-    scrape_landsat_alphabet_gallery()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Download NASA Landsat alphabet images")
+    parser.add_argument(
+        "--output", "-o",
+        default="dataset/satellite_letters/raw/nasa",
+        help="Output directory (default: dataset/satellite_letters/raw/nasa)",
+    )
+    parser.add_argument(
+        "--max-per-letter", "-m",
+        type=int,
+        default=50,
+        help="Max images to try per letter (default: 50)",
+    )
+    args = parser.parse_args()
+
+    scrape_landsat_alphabet(output_dir=args.output, max_per_letter=args.max_per_letter)
