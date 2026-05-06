@@ -6,7 +6,7 @@ Runs all dataset collection scripts in order:
   2. Generate rendered fonts
   3. Scrape NASA Landsat (automated + manual guide)
   4. Augment satellite images
-  5. Generate satellite fonts (Approach B — fonts on NASA textures)
+  5. Generate satellite fonts (fonts on NASA textures)
   6. Verify all datasets
 
 Usage:
