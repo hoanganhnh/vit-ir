@@ -5,13 +5,14 @@ Runs all dataset collection scripts in order:
   1. Download EMNIST Letters
   2. Generate rendered fonts
   3. Scrape NASA Landsat (automated + manual guide)
-  4. Augment satellite images (after manual collection)
-  5. Verify all datasets
+  4. Augment satellite images
+  5. Generate satellite fonts (Approach B — fonts on NASA textures)
+  6. Verify all datasets
 
 Usage:
-  python scripts/run_pipeline.py              # Run steps 1-3, 5
-  python scripts/run_pipeline.py --all        # Run all including augmentation
-  python scripts/run_pipeline.py --step 2     # Run specific step
+  python scripts/run_pipeline.py              # Run steps 1, 3, 4, 5, 6
+  python scripts/run_pipeline.py --all        # Run all including rendered fonts
+  python scripts/run_pipeline.py --step 5     # Run specific step
 """
 
 import os
@@ -37,7 +38,7 @@ def run_step(step_num: int, script: str, args: list = None):
 
 def main():
     parser = argparse.ArgumentParser(description="SatLetter Dataset Pipeline")
-    parser.add_argument("--step", type=int, help="Run specific step (1-5)")
+    parser.add_argument("--step", type=int, help="Run specific step (1-6)")
     parser.add_argument("--all", action="store_true", help="Run all steps including augmentation")
     parser.add_argument("--emnist-max-train", type=int, default=2000, help="Max EMNIST train per class")
     parser.add_argument("--emnist-max-test", type=int, default=400, help="Max EMNIST test per class")
@@ -51,18 +52,19 @@ def main():
         2: ("scripts/02_generate_rendered_fonts.py", [str(args.fonts_train), str(args.fonts_test)]),
         3: ("scripts/03_scrape_nasa_landsat.py", []),
         4: ("scripts/04_augment_satellite.py", [str(args.aug_multiplier)]),
-        5: ("scripts/05_verify_dataset.py", []),
+        5: ("scripts/02_generate_rendered_fonts.py", [str(args.fonts_train), str(args.fonts_test), "--sat"]),
+        6: ("scripts/05_verify_dataset.py", []),
     }
 
     if args.step:
         if args.step not in steps:
-            print(f"Invalid step: {args.step}. Valid steps: 1-5")
+            print(f"Invalid step: {args.step}. Valid steps: 1-6")
             sys.exit(1)
         script, step_args = steps[args.step]
         run_step(args.step, script, step_args)
     else:
-        # Default: run steps 1, 2, 3, 5 (skip augmentation since it needs manual images)
-        steps_to_run = [1, 2, 3, 5] if not args.all else [1, 2, 3, 4, 5]
+        # Default: 1→EMNIST, 3→NASA download, 4→augment NASA, 5→sat_fonts, 6→verify
+        steps_to_run = [1, 2, 3, 4, 5, 6] if args.all else [1, 3, 4, 5, 6]
         for step_num in steps_to_run:
             script, step_args = steps[step_num]
             success = run_step(step_num, script, step_args)

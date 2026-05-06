@@ -42,7 +42,7 @@ def parse_args():
 
     # Dataset
     parser.add_argument("--dataset", type=str, default="emnist",
-                        choices=["emnist", "rendered_fonts", "satellite", "cub200"],
+                        choices=["emnist", "rendered_fonts", "satellite", "sat_fonts", "cub200"],
                         help="Dataset to train on")
     parser.add_argument("--data_root", type=str, default="dataset",
                         help="Root directory for datasets")
@@ -113,6 +113,7 @@ def get_dataloaders(args) -> tuple[DataLoader, DataLoader]:
         "emnist": os.path.join(args.data_root, "emnist_letters"),
         "rendered_fonts": os.path.join(args.data_root, "rendered_fonts"),
         "satellite": os.path.join(args.data_root, "satellite_letters"),
+        "sat_fonts": os.path.join(args.data_root, "sat_fonts"),
         "cub200": os.path.join(args.data_root, "cub200"),
     }
 

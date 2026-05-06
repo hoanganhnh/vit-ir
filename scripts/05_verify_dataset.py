@@ -25,6 +25,7 @@ def verify_dataset(base_dir: str = "dataset"):
     datasets = {
         "EMNIST Letters": os.path.join(base_dir, "emnist_letters"),
         "Rendered Fonts": os.path.join(base_dir, "rendered_fonts"),
+        "Satellite Fonts (Approach B)": os.path.join(base_dir, "sat_fonts"),
         "Satellite Letters": os.path.join(base_dir, "satellite_letters"),
     }
 
