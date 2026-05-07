@@ -77,8 +77,8 @@ def parse_args():
                         help="Learning rate")
     parser.add_argument("--weight_decay", type=float, default=5e-4,
                         help="Weight decay")
-    parser.add_argument("--num_workers", type=int, default=4,
-                        help="DataLoader workers")
+    parser.add_argument("--num_workers", type=int, default=None,
+                        help="DataLoader workers (default: auto-detect from CPU count)")
     parser.add_argument("--image_size", type=int, default=224,
                         help="Input image size")
 
@@ -241,6 +241,8 @@ def main():
     print(f"Epochs:    {args.epochs}")
     print(f"Batch:     {args.batch_size}")
     print(f"LR:        {args.lr}")
+    print(f"Workers:   {args.num_workers if args.num_workers is not None else 'auto'}")
+    print(f"Pin mem:   {'auto (CUDA)' if args.num_workers is None else bool(torch.cuda.is_available())}")
 
     # Data
     print(f"\n--- Loading Data ---")

@@ -16,6 +16,27 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 
 
+# ── System-aware defaults ────────────────────────────────────────────────────
+
+def _safe_num_workers() -> int:
+    """Return a safe num_workers based on available CPU cores.
+    
+    Google Colab free tier typically has 2 vCPUs.
+    Using more workers than CPUs causes context-switch thrashing and freezes.
+    """
+    try:
+        cpu_count = os.cpu_count() or 1
+        # Reserve 1 core for the main process; at least 0 (main-process loading)
+        return max(0, min(cpu_count - 1, cpu_count))
+    except Exception:
+        return 0
+
+
+def _safe_pin_memory() -> bool:
+    """Only pin memory when a CUDA device is available."""
+    return torch.cuda.is_available()
+
+
 # ── Standard transforms ─────────────────────────────────────────────────────
 
 def get_train_transform(image_size: int = 224):
@@ -70,11 +91,21 @@ def get_dataloader(
     dataset: Dataset,
     batch_size: int = 64,
     shuffle: bool = True,
-    num_workers: int = 4,
-    pin_memory: bool = True,
+    num_workers: int | None = None,
+    pin_memory: bool | None = None,
     drop_last: bool = True,
 ) -> DataLoader:
-    """Create a DataLoader with standard settings."""
+    """Create a DataLoader with system-aware defaults.
+    
+    When num_workers or pin_memory are None, they are auto-detected:
+      - num_workers: min(cpu_count - 1, cpu_count), at least 0
+      - pin_memory: True only when CUDA is available
+    """
+    if num_workers is None:
+        num_workers = _safe_num_workers()
+    if pin_memory is None:
+        pin_memory = _safe_pin_memory()
+
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -91,7 +122,7 @@ def get_emnist_loaders(
     root: str = "dataset/emnist_letters",
     batch_size: int = 64,
     image_size: int = 224,
-    num_workers: int = 4,
+    num_workers: int | None = None,
 ) -> tuple[DataLoader, DataLoader]:
     """Get EMNIST Letters train and test dataloaders."""
     train_ds = get_folder_dataset(root, "train", image_size)
@@ -105,7 +136,7 @@ def get_rendered_fonts_loaders(
     root: str = "dataset/rendered_fonts",
     batch_size: int = 64,
     image_size: int = 224,
-    num_workers: int = 4,
+    num_workers: int | None = None,
 ) -> tuple[DataLoader, DataLoader]:
     """Get Rendered Fonts train and test dataloaders."""
     train_ds = get_folder_dataset(root, "train", image_size)
@@ -119,7 +150,7 @@ def get_satellite_loaders(
     root: str = "dataset/satellite_letters",
     batch_size: int = 64,
     image_size: int = 224,
-    num_workers: int = 4,
+    num_workers: int | None = None,
 ) -> tuple[DataLoader, DataLoader]:
     """Get Satellite Letters train and test dataloaders."""
     train_ds = get_folder_dataset(root, "train", image_size)
