@@ -1,1 +1,7 @@
 __pycache__
+dataset
+.agent
+.agents
+chats
+COLAB_GUIDE*.md
+plans
