@@ -125,7 +125,11 @@ class KoLeoLoss(nn.Module):
 
         # Nearest neighbor distance: min_j ||z_i - z_j|| = sqrt(2 - 2*max_j(z_i·z_j))
         max_sim, _ = dot_products.max(dim=1)  # (B,)
-        nn_dist = torch.sqrt(2.0 - 2.0 * max_sim + self.eps)  # (B,)
+
+        # Clamp to prevent sqrt of negative due to floating point
+        # (cosine similarity can slightly exceed 1.0 with L2-normalized vectors)
+        squared_dist = torch.clamp(2.0 - 2.0 * max_sim, min=0.0)
+        nn_dist = torch.sqrt(squared_dist + self.eps)  # (B,)
 
         # KoLeo loss: negative mean log of nearest neighbor distances
         loss = -torch.log(nn_dist + self.eps).mean()

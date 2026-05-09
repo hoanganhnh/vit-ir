@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.models.backbone import build_model
 from src.data.datasets import get_eval_transform, get_folder_dataset, get_dataloader
 from src.utils.evaluation import extract_all_features
+from torchvision.datasets import ImageFolder
 
 
 def load_model(checkpoint_path: str, device: str = "cuda"):
@@ -60,11 +61,23 @@ def extract_query_feature(model, image_path: str, device: str = "cuda", image_si
 
 
 def build_gallery_index(model, gallery_dir: str, device: str = "cuda", image_size: int = 224):
-    """Build gallery index: extract features for all gallery images."""
-    dataset = get_folder_dataset(gallery_dir, split="test", image_size=image_size)
-    # Handle case where gallery is not split into train/test
-    if not os.path.isdir(os.path.join(gallery_dir, "test")):
-        dataset = get_folder_dataset(os.path.dirname(gallery_dir), split=os.path.basename(gallery_dir), image_size=image_size)
+    """Build gallery index: extract features for all gallery images.
+
+    Handles both split (train/test) and flat (class_name/) gallery structures.
+    """
+    # Try test split first
+    test_dir = os.path.join(gallery_dir, "test")
+    if os.path.isdir(test_dir):
+        dataset = get_folder_dataset(gallery_dir, split="test", image_size=image_size)
+    else:
+        # Flat gallery: gallery_dir contains class folders directly
+        dataset = ImageFolder(
+            root=gallery_dir,
+            transform=get_eval_transform(image_size),
+        )
+        print(f"Loaded flat gallery from {gallery_dir}:")
+        print(f"  Samples: {len(dataset)}")
+        print(f"  Classes: {len(dataset.classes)}")
 
     loader = get_dataloader(dataset, batch_size=64, shuffle=False, drop_last=False)
     features, labels = extract_all_features(model, loader, device)

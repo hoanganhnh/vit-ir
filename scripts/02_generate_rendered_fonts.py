@@ -6,7 +6,7 @@ optional satellite-like texture backgrounds.
 
 Modes:
   - Default: dataset/rendered_fonts/train|test/A/ ... Z/
-  - --sat:   dataset/sat_fonts/train|test/A/ ... Z/  (Approach B — NASA textures)
+  - --sat:   dataset/sat_fonts/train|test/A/ ... Z/  (NASA textures)
 """
 
 import os
