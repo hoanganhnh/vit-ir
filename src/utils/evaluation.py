@@ -165,3 +165,40 @@ def print_metrics(metrics: dict[str, float], prefix: str = ""):
     header = f"{prefix} " if prefix else ""
     parts = [f"{k}: {v:.2f}%" for k, v in metrics.items()]
     print(f"{header}| {' | '.join(parts)} |")
+
+
+def evaluate_cross_domain(
+    model,
+    query_loader,
+    gallery_loader,
+    device: str = "cuda",
+    k_values: list[int] = [1, 5, 10],
+) -> dict[str, float]:
+    """Evaluate cross-domain retrieval: query and gallery from different domains.
+
+    Args:
+        model: Trained IRT model
+        query_loader: DataLoader for query domain (e.g., EMNIST)
+        gallery_loader: DataLoader for gallery domain (e.g., Satellite)
+
+    Returns:
+        Dictionary with R@K and mAP metrics
+    """
+    query_features, query_labels = extract_all_features(model, query_loader, device)
+    gallery_features, gallery_labels = extract_all_features(model, gallery_loader, device)
+
+    recall_results = compute_recall_at_k(
+        query_features, query_labels,
+        gallery_features, gallery_labels,
+        k_values, exclude_self=False,
+    )
+
+    map_score = compute_map(
+        query_features, query_labels,
+        gallery_features, gallery_labels,
+        exclude_self=False,
+    )
+    recall_results["mAP"] = map_score
+
+    return recall_results
+

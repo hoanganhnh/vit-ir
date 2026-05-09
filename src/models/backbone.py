@@ -153,6 +153,33 @@ class IRTModel(nn.Module):
         self.eval()
         return self.forward(x)
 
+    def freeze_layers(self, num_layers: int = 6):
+        """Freeze patch embedding and first N transformer blocks.
+
+        DeiT-Small has 12 blocks. Freezing 6 means:
+        - Layers 0-5: frozen (low-level features preserved from pretraining)
+        - Layers 6-11: trainable (high-level adaptation for new domain)
+        - CLS token, pos_embed, norm: always trainable
+
+        Args:
+            num_layers: Number of transformer blocks to freeze (0-12)
+        """
+        # Freeze patch embedding
+        for p in self.backbone.patch_embed.parameters():
+            p.requires_grad = False
+
+        # Freeze first N transformer blocks
+        for i in range(min(num_layers, len(self.backbone.blocks))):
+            for p in self.backbone.blocks[i].parameters():
+                p.requires_grad = False
+
+        # Count trainable params
+        total = sum(p.numel() for p in self.parameters())
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        frozen = total - trainable
+        print(f"Frozen {num_layers} layers: {frozen:,} frozen, {trainable:,} trainable ({trainable/total*100:.1f}%)")
+
+
 
 def build_model(
     backbone: str = "deit_small_patch16_224",

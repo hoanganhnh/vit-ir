@@ -42,7 +42,7 @@ def parse_args():
 
     # Dataset
     parser.add_argument("--dataset", type=str, default="emnist",
-                        choices=["emnist", "rendered_fonts", "satellite", "sat_fonts", "cub200"],
+                        choices=["emnist", "rendered_fonts", "satellite", "sat_fonts", "cub200", "cross_domain"],
                         help="Dataset to train on")
     parser.add_argument("--data_root", type=str, default="dataset",
                         help="Root directory for datasets")
@@ -82,6 +82,15 @@ def parse_args():
     parser.add_argument("--image_size", type=int, default=224,
                         help="Input image size")
 
+    # Stage control
+    parser.add_argument("--stage", type=int, default=0,
+                        choices=[0, 1, 2],
+                        help="Training stage: 0=auto, 1=shape pretrain, 2=cross-domain finetune")
+    parser.add_argument("--freeze_layers", type=int, default=0,
+                        help="Freeze first N transformer blocks (0=none, 6=recommended for stage 2)")
+    parser.add_argument("--satellite_oversample", type=int, default=10,
+                        help="Oversample factor for satellite images in cross-domain training")
+
     # Checkpointing
     parser.add_argument("--checkpoint_dir", type=str, default="checkpoints",
                         help="Directory to save checkpoints")
@@ -109,6 +118,17 @@ def get_device(device_str: str) -> torch.device:
 
 def get_dataloaders(args) -> tuple[DataLoader, DataLoader]:
     """Get train and test dataloaders based on args."""
+    # Cross-domain mode for stage 2
+    if args.dataset == "cross_domain":
+        from src.data.datasets import get_cross_domain_loaders
+        return get_cross_domain_loaders(
+            data_root=args.data_root,
+            batch_size=args.batch_size,
+            image_size=args.image_size,
+            satellite_oversample=args.satellite_oversample,
+            num_workers=args.num_workers,
+        )
+
     dataset_paths = {
         "emnist": os.path.join(args.data_root, "emnist_letters"),
         "rendered_fonts": os.path.join(args.data_root, "rendered_fonts"),
@@ -168,9 +188,19 @@ def train_one_epoch(
         # Compute loss
         losses = criterion(embeddings, labels, mem_emb, mem_lab)
 
+        # NaN guard: skip batch if loss is NaN to prevent cascade
+        if torch.isnan(losses["total"]):
+            print(f"  ⚠️  NaN loss at batch {batch_idx+1}, skipping...")
+            optimizer.zero_grad()
+            continue
+
         # Backward
         optimizer.zero_grad()
         losses["total"].backward()
+
+        # Gradient clipping to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
 
         # Update memory
@@ -264,6 +294,10 @@ def main():
         model.load_state_dict(ckpt["model_state_dict"], strict=False)
 
     model = model.to(device)
+
+    # Freeze layers if specified (for stage 2 fine-tuning)
+    if args.freeze_layers > 0:
+        model.freeze_layers(args.freeze_layers)
 
     # Loss
     criterion = IRTLoss(
