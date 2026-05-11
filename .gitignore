@@ -6,3 +6,9 @@ chats
 COLAB_GUIDE*.md
 plans
 checkpoints
+release-manifest.json
+.claude
+CLAUDE.md
+AGENTS.md
+.repomixignore
+.codex
