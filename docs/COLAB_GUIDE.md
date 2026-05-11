@@ -102,14 +102,16 @@ display(Image('retrieval_demo.png'))
 Thêm vào Cell 1:
 
 ```python
+import os
 from google.colab import drive
-drive.mount('/content/drive')
 
-# Copy repo vào Drive (chạy lần đầu)
-!cp -r vit-ir /content/drive/MyDrive/vit-ir
+drive.mount('/content/drive', force_remount=True)
 
-# Hoặc cd vào Drive (chạy lần sau)
-# %cd /content/drive/MyDrive/vit-ir
+drive_path = '/content/drive/MyDrive'
+# !cp -r /content/vit-ir {drive_path}
+
+# os.chdir(drive_path)
+print(f"📁 Thư mục làm việc hiện tại: {os.getcwd()}")
 ```
 
 ---
