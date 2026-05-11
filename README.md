@@ -38,7 +38,7 @@ vit-ir/
 │   ├── models/backbone.py          # IRTModel (DeiT-Small + GeM pooling)
 │   ├── losses/irt_losses.py        # Contrastive + KoLeo + XBM
 │   ├── data/datasets.py            # DataLoaders + CrossDomainDataset
-│   └── utils/evaluation.py         # Recall@K, mAP, Precision@K
+│   └── utils/evaluation.py         # Recall@K, mAP
 ├── scripts/                        # Dataset & training pipeline
 │   ├── 01_download_emnist.py       # EMNIST Letters (145K images)
 │   ├── 02_generate_rendered_fonts.py # Rendered fonts (15.6K images)
@@ -134,7 +134,6 @@ python demo.py \
 |--------|-------|
 | Recall@K (K=1,5,10) | Tỷ lệ queries có ≥1 correct match trong top-K |
 | mAP | Mean Average Precision |
-| Precision@K | Tỷ lệ top-K results thuộc đúng class |
 
 ## Success Criteria
 

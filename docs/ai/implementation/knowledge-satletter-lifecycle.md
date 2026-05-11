@@ -341,8 +341,7 @@ flowchart TB
 |---|---------|----------|------------|
 | 1 | **Per-class Recall@K** | Breakdown theo A-Z → tìm classes yếu | 🔴 Cao |
 | 2 | **t-SNE visualization** | Code đã có trong colab_setup.py, cần integrate | 🟡 TB |
-| 3 | **Precision@K** | Bổ sung cho Recall@K | 🟡 TB |
-| 4 | **Confusion matrix retrieval** | Ma trận nhầm lẫn giữa các chữ cái | 🟢 Thấp |
+| 3 | **Confusion matrix retrieval** | Ma trận nhầm lẫn giữa các chữ cái | 🟢 Thấp |
 
 ---
 

@@ -45,7 +45,6 @@ Collection      + EMNIST        + Evaluation    + Report
 | Backbone freezing (6/12 layers) | ✅ Complete | `model.freeze_layers()` |
 | Stage 2 training (cross-domain) | ✅ Complete | `scripts/train_stage2.sh` |
 | Cross-domain evaluation | ✅ Complete | `scripts/evaluate_cross_domain.py` |
-| Precision@K metric | ✅ Complete | Added to evaluation.py |
 | Demo CLI | ✅ Complete | `demo.py` |
 
 ### 🔄 Phase 4 — Analysis & Report (Week 4)

@@ -387,7 +387,6 @@ flowchart TB
 
 1. **Thiếu per-class metrics**: Cần breakdown Recall@K theo A-Z
 2. **Thiếu visualization**: t-SNE/UMAP chưa implement
-3. **Thiếu Precision@K**: Bổ sung cho Recall@K
 
 ---
 
@@ -575,4 +574,3 @@ ablation_results = pd.DataFrame([
 3. **Chạy full ablation matrix** — 7 experiments × cross-domain evaluation
 4. **Generate heatmap** — cross-domain similarity matrix A-Z × A-Z
 5. **Document actual results** — cập nhật ablation DataFrame sau training
-6. **Thêm Precision@K metric** — bổ sung cho Recall@K

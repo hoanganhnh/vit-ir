@@ -149,7 +149,6 @@ Merge nhiều ImageFolder datasets với:
 |--------|-------|
 | Recall@K (K=1,5,10) | Fraction queries có ≥1 correct match trong top-K |
 | mAP | Mean Average Precision trên toàn bộ ranking |
-| Precision@K | Fraction top-K results thuộc đúng class |
 
 **Evaluation Modes:**
 
