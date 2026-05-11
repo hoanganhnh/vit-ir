@@ -162,7 +162,7 @@ python demo.py \
 | [Code Standards](docs/code-standards.md) | Quy chuẩn code |
 | [Project Roadmap](docs/project-roadmap.md) | Lộ trình phát triển |
 | [Deployment Guide](docs/deployment-guide.md) | Hướng dẫn triển khai trên Colab |
-| [Colab Guide](docs/COLAB_GUIDE_v2.md) | Hướng dẫn chi tiết cho Colab |
+| [Colab Guide](docs/COLAB_GUIDE.md) | Hướng dẫn chi tiết cho Colab |
 
 ## Requirements
 
