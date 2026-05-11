@@ -30,7 +30,7 @@ Xây dựng hệ thống **image-to-image retrieval** cho ảnh vệ tinh:
 | Cross-domain image retrieval pipeline | Real-time production deployment |
 | DeiT-Small backbone + contrastive + KoLeo loss | Large-scale distributed training |
 | 3-tier dataset pipeline (EMNIST → Fonts → Satellite) | Web interface / API server |
-| Evaluation metrics: Recall@K, mAP, Precision@K | Video retrieval |
+| Evaluation metrics: Recall@K, mAP | Video retrieval |
 | CLI demo (query → top-K results) | Fine-grained localization |
 
 ### Success Criteria
